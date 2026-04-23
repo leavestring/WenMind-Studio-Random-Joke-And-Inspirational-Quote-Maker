@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WenMind Studio - 主页</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        /* ============================================================
+           Dashboard 专属样式
+           ============================================================ */
+
+        /* ---------- 顶部导航 ---------- */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 107, 53, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .navbar-brand span {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .navbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .navbar-actions .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(255, 107, 53, 0.08);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .user-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* ---------- 主容器 ---------- */
+        .main-container {
+            padding-top: 80px;
+            padding-bottom: 40px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ---------- 模式切换 Tabs ---------- */
+        .mode-tabs {
+            display: flex;
+            gap: 4px;
+            padding: 4px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 12px;
+            border: 1px solid var(--surface-border);
+            margin-bottom: 32px;
+        }
+
+        .mode-tab {
+            padding: 10px 24px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mode-tab:hover {
+            color: var(--text-primary);
+            background: rgba(255, 107, 53, 0.06);
+        }
+
+        .mode-tab.active {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+        }
+
+        /* ---------- 内容卡片 ---------- */
+        .content-section {
+            width: 100%;
+            max-width: 640px;
+            padding: 0 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .content-card {
+            width: 100%;
+            min-height: 240px;
+            padding: 40px 36px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            animation: cardFlip 0.4s ease-out;
+        }
+
+        .content-card .category-badge {
+            position: absolute;
+            top: 16px;
+            left: 20px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-joke {
+            background: rgba(255, 107, 53, 0.12);
+            color: var(--primary);
+        }
+
+        .badge-quote {
+            background: rgba(46, 196, 182, 0.12);
+            color: var(--secondary);
+        }
+
+        .content-card .content-text {
+            font-size: 1.35rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+            max-width: 520px;
+            word-wrap: break-word;
+        }
+
+        .content-card .content-author {
+            margin-top: 16px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .content-card .content-author::before {
+            content: '—— ';
+        }
+
+        .content-card .content-source {
+            position: absolute;
+            bottom: 12px;
+            right: 16px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            opacity: 0.5;
+        }
+
+        /* ---------- 加载状态 ---------- */
+        .content-card.loading .content-text,
+        .content-card.loading .content-author,
+        .content-card.loading .category-badge {
+            display: none;
+        }
+
+        .content-card.loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ---------- 操作按钮组 ---------- */
+        .action-bar {
+            display: flex;
+            gap: 12px;
+            margin-top: 28px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .action-bar .btn {
+            min-width: 100px;
+        }
+
+        /* ---------- 右下角浮动按钮 ---------- */
+        .fab {
+            position: fixed;
+            bottom: 32px;
+            right: 32px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.4);
+            cursor: pointer;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            z-index: 900;
+        }
+
+        .fab:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 24px rgba(255, 107, 53, 0.5);
+        }
+
+        .fab:active {
+            transform: scale(0.95);
+        }
+
+        /* ---------- 侧边抽屉（收藏面板） ---------- */
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            z-index: 6000;
+            display: none;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .drawer-overlay.show {
+            display: block;
+        }
+
+        .drawer {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 400px;
+            max-width: 100vw;
+            height: 100vh;
+            background: white;
+            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+            z-index: 7000;
+            transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .drawer.open {
+            right: 0;
+        }
+
+        .drawer-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #E5E7EB;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .drawer-header h2 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .drawer-header h2 .count {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .drawer-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: none;
+            font-size: 1.3rem;
+            cursor: pointer;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            color: var(--text-muted);
+        }
+
+        .drawer-close:hover {
+            background: #F3F4F6;
+            color: var(--text-primary);
+        }
+
+        .drawer-tabs {
+            display: flex;
+            border-bottom: 1px solid #E5E7EB;
+            flex-shrink: 0;
+        }
+
+        .drawer-tab {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition);
+            border-bottom: 2px solid transparent;
+        }
+
+        .drawer-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .drawer-tab:hover {
+            color: var(--text-secondary);
+            background: rgba(255, 107, 53, 0.04);
+        }
+
+        .drawer-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        /* ---------- 收藏/历史列表项 ---------- */
+        .list-item {
+            padding: 16px;
+            border-radius: var(--radius-sm);
+            border: 1px solid #F3F4F6;
+            margin-bottom: 10px;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .list-item:hover {
+            border-color: var(--surface-border);
+            background: rgba(255, 107, 53, 0.02);
+        }
+
+        .list-item .item-text {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .list-item .item-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .list-item .item-meta .badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+        }
+
+        .list-item .item-actions {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: none;
+            gap: 4px;
+        }
+
+        .list-item:hover .item-actions {
+            display: flex;
+        }
+
+        .list-item .item-actions button {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .list-item .item-actions button:hover {
+            color: var(--error);
+            background: #FEF2F2;
+        }
+
+        .list-empty {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text-muted);
+        }
+
+        .list-empty .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .list-empty p {
+            font-size: 0.9rem;
+        }
+
+        /* ---------- 响应式 ---------- */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 10px 16px;
+            }
+
+            .navbar-actions .user-info span {
+                display: none;
+            }
+
+            .main-container {
+                padding-top: 72px;
+            }
+
+            .content-card {
+                padding: 28px 20px;
+                min-height: 200px;
+            }
+
+            .content-card .content-text {
+                font-size: 1.15rem;
+            }
+
+            .mode-tabs {
+                width: 100%;
+                max-width: 400px;
+            }
+
+            .mode-tab {
+                flex: 1;
+                justify-content: center;
+                padding: 10px 16px;
+                font-size: 0.85rem;
+            }
+
+            .action-bar .btn {
+                min-width: 80px;
+                padding: 10px 16px;
+                font-size: 0.85rem;
+            }
+
+            .fab {
+                bottom: 20px;
+                right: 20px;
+                width: 48px;
+                height: 48px;
+                font-size: 1.2rem;
+            }
+
+            .drawer {
+                right: -100vw;
+                width: 100vw;
+            }
+
+            .drawer.open {
+                right: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .content-card .content-text {
+                font-size: 1.05rem;
+            }
+
+            .mode-tab {
+                font-size: 0.8rem;
+                padding: 8px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ============================================================
+    顶部导航栏
+    ============================================================ -->
+    <nav class="navbar">
+        <a href="dashboard.html" class="navbar-brand">
+            🧠 <span>WenMind Studio</span>
+        </a>
+        <div class="navbar-actions">
+            <div class="user-info">
+                <div class="user-avatar" id="userAvatar">U</div>
+                <span id="userName">用户</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="handleLogout()" title="退出登录">
+                退出
+            </button>
+        </div>
+    </nav>
+
+    <!-- ============================================================
+    主内容区
+    ============================================================ -->
+    <div class="main-container">
+        <!-- 模式切换 -->
+        <div class="mode-tabs">
+            <button class="mode-tab active" data-mode="joke" onclick="switchMode('joke')">
+                😄 随机笑话
+            </button>
+            <button class="mode-tab" data-mode="quote" onclick="switchMode('quote')">
+                💪 鸡汤文案
+            </button>
+        </div>
+
+        <!-- 内容展示区 -->
+        <div class="content-section">
+            <div class="glass-card content-card" id="contentCard">
+                <!-- 加载状态 -->
+                <div id="loadingSpinner" style="display:none;flex-direction:column;align-items:center;gap:16px;padding:40px;">
+                    <div class="spinner" style="width:36px;height:36px;border-width:4px;"></div>
+                    <p style="color:var(--text-muted);font-size:0.9rem;" id="loadingText">加载中...</p>
+                </div>
+
+                <!-- 错误状态 -->
+                <div id="errorWrapper" style="display:none;flex-direction:column;align-items:center;gap:8px;padding:40px;text-align:center;">
+                    <p style="font-size:1.1rem;color:var(--text-secondary);">😅 获取失败，请稍后再试</p>
+                    <p id="errorMessage" style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;"></p>
+                </div>
+
+                <!-- 正常内容展示 -->
+                <div id="contentWrapper">
+                    <span class="category-badge badge-joke" id="categoryBadge">😄 笑话</span>
+                    <div class="content-text" id="contentText">
+                        点击下方按钮，获取今日份的快乐吧！
+                    </div>
+                    <div class="content-author" id="contentAuthor"></div>
+                    <div class="content-source" id="contentSource"></div>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="action-bar">
+                <button class="btn btn-primary btn-lg" id="fetchBtn" onclick="fetchContent()">
+                    🔄 换一个
+                </button>
+                <button class="btn btn-secondary" id="copyBtn" onclick="copyContent()">
+                    📋 复制
+                </button>
+                <button class="btn btn-secondary" id="favBtn" onclick="addFavorite()">
+                    ❤️ 收藏
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    浮动按钮 - 打开收藏面板
+    ============================================================ -->
+    <button class="fab" id="fabBtn" onclick="toggleDrawer()" title="我的收藏">
+        ⭐
+    </button>
+
+    <!-- ============================================================
+    侧边抽屉 - 收藏 & 历史
+    ============================================================ -->
+    <div class="drawer-overlay" id="drawerOverlay" onclick="toggleDrawer()"></div>
+    <div class="drawer" id="drawer">
+        <div class="drawer-header">
+            <h2>
+                📚 我的收藏
+                <span class="count" id="favCount">(0)</span>
+            </h2>
+            <button class="drawer-close" onclick="toggleDrawer()">✕</button>
+        </div>
+        <div class="drawer-tabs">
+            <button class="drawer-tab active" data-panel="favorites" onclick="switchDrawerTab('favorites')">
+                ⭐ 收藏
+            </button>
+            <button class="drawer-tab" data-panel="history" onclick="switchDrawerTab('history')">
+                🕐 历史
+            </button>
+        </div>
+        <div class="drawer-body" id="drawerBody">
+            <!-- 由 JS 动态渲染 -->
+            <div class="list-empty">
+                <span class="empty-icon">📭</span>
+                <p>加载中...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script>
+        // ============================================================
+        // 状态管理
+        // ============================================================
+        let currentMode = 'joke';           // 当前模式: joke / quote
+        let currentContent = null;          // 当前展示的内容对象
+        let isFetching = false;             // 是否正在请求中
+        let drawerOpen = false;             // 抽屉是否打开
+        let activePanel = 'favorites';      // 当前抽屉面板: favorites / history
+        let lastFetchTime = 0;              // 上次获取内容的时间戳
+        const FETCH_COOLDOWN = 1500;        // 请求冷却时间（毫秒），防止过快点击
+
+        // ============================================================
+        // 初始化
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 检查登录状态
+            if (!isLoggedIn()) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // 显示用户信息
+            const user = getStoredUser();
+            if (user) {
+                document.getElementById('userName').textContent = user.nickname || user.username;
+                document.getElementById('userAvatar').textContent = (user.nickname || user.username)[0].toUpperCase();
+            }
+
+            // 加载第一条内容
+            await fetchContent();
+
+            // ============================================================
+            // 点击卡片切换到下一句
+            // ============================================================
+            const contentCard = document.getElementById('contentCard');
+            contentCard.addEventListener('click', function (e) {
+                // 如果用户正在选择文本，不触发切换
+                if (window.getSelection().toString().length > 0) return;
+                // 触发获取下一条内容
+                fetchContent();
+            });
+        });
+
+        // ============================================================
+        // 模式切换
+        // ============================================================
+        function switchMode(mode) {
+            if (mode === currentMode) return;
+            currentMode = mode;
+
+            // 更新 Tab 样式
+            document.querySelectorAll('.mode-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.mode === mode);
+            });
+
+            fetchContent();
+        }
+
+        // ============================================================
+        // 获取内容
+        // ============================================================
+        async function fetchContent() {
+            // 冷却检查：防止短时间内重复请求
+            const now = Date.now();
+            if (isFetching) return;
+            if (now - lastFetchTime < FETCH_COOLDOWN && currentContent) {
+                showToast('请稍候，不要太快哦 😊', 'info');
+                return;
+            }
+            isFetching = true;
+
+            const card = document.getElementById('contentCard');
+            const fetchBtn = document.getElementById('fetchBtn');
+            const spinner = document.getElementById('loadingSpinner');
+            const contentWrap = document.getElementById('contentWrapper');
+            const errorWrap = document.getElementById('errorWrapper');
+
+            // 显示加载状态，隐藏内容和错误
+            card.classList.add('loading');
+            contentWrap.style.display = 'none';
+            errorWrap.style.display = 'none';
+            spinner.style.display = 'flex';
+            fetchBtn.disabled = true;
+            fetchBtn.textContent = '加载中...';
+
+            try {
+                let data;
+                if (currentMode === 'joke') {
+                    data = await contentApi.getRandomJoke();
+                } else {
+                    data = await contentApi.getRandomQuote();
+                }
+                currentContent = data;
+                card.classList.remove('loading');
+                spinner.style.display = 'none';
+                errorWrap.style.display = 'none';
+                contentWrap.style.display = '';
+                renderContent(data);
+            } catch (error) {
+                showToast(error.message, 'error');
+                card.classList.remove('loading');
+                spinner.style.display = 'none';
+                contentWrap.style.display = 'none';
+                errorWrap.style.display = 'flex';
+                document.getElementById('errorMessage').textContent = error.message;
+            } finally {
+                isFetching = false;
+                lastFetchTime = Date.now();
+                fetchBtn.disabled = false;
+                fetchBtn.textContent = '🔄 换一个';
+            }
+        }
+
+        // ============================================================
+        // 渲染内容到卡片
+        // ============================================================
+        function renderContent(data) {
+            const card = document.getElementById('contentCard');
+            card.classList.remove('loading');
+
+            const badge = document.getElementById('categoryBadge');
+            const text = document.getElementById('contentText');
+            const author = document.getElementById('contentAuthor');
+            const source = document.getElementById('contentSource');
+
+            if (data.category === 'joke') {
+                badge.className = 'category-badge badge-joke';
+                badge.textContent = '😄 笑话';
+            } else {
+                badge.className = 'category-badge badge-quote';
+                badge.textContent = '💪 鸡汤';
+            }
+
+            text.textContent = data.content;
+            author.textContent = data.author || '';
+            source.textContent = `来源: ${data.source || '未知'}`;
+
+            // 重新触发卡片动画
+            card.style.animation = 'none';
+            card.offsetHeight; // 强制回流
+            card.style.animation = 'cardFlip 0.4s ease-out';
+        }
+
+        // ============================================================
+        // 复制内容
+        // ============================================================
+        async function copyContent() {
+            if (!currentContent) {
+                showToast('还没有内容可以复制', 'info');
+                return;
+            }
+
+            const text = currentContent.author
+                ? `${currentContent.content}\n—— ${currentContent.author}`
+                : currentContent.content;
+
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('✅ 已复制到剪贴板', 'success');
+            } catch {
+                // 降级方案
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast('✅ 已复制到剪贴板', 'success');
+            }
+        }
+
+        // ============================================================
+        // 收藏当前内容
+        // ============================================================
+        async function addFavorite() {
+            if (!currentContent) {
+                showToast('还没有内容可以收藏', 'info');
+                return;
+            }
+
+            const favBtn = document.getElementById('favBtn');
+            favBtn.disabled = true;
+            favBtn.textContent = '⏳ 收藏中...';
+
+            try {
+                await favoriteApi.add({
+                    content: currentContent.content,
+                    author: currentContent.author || '',
+                    category: currentContent.category,
+                    source: currentContent.source || '',
+                });
+                showToast('❤️ 已收藏！', 'success');
+            } catch (error) {
+                if (error.message.includes('已收藏过')) {
+                    showToast('💡 该内容已收藏过', 'info');
+                } else {
+                    showToast(error.message, 'error');
+                }
+            } finally {
+                favBtn.disabled = false;
+                favBtn.textContent = '❤️ 收藏';
+            }
+        }
+
+        // ============================================================
+        // 抽屉（收藏/历史面板）
+        // ============================================================
+        function toggleDrawer() {
+            drawerOpen = !drawerOpen;
+            document.getElementById('drawer').classList.toggle('open', drawerOpen);
+            document.getElementById('drawerOverlay').classList.toggle('show', drawerOpen);
+
+            if (drawerOpen) {
+                // 打开抽屉时加载数据
+                if (activePanel === 'favorites') {
+                    loadFavorites();
+                } else {
+                    loadHistory();
+                }
+            }
+        }
+
+        function switchDrawerTab(panel) {
+            activePanel = panel;
+            document.querySelectorAll('.drawer-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.panel === panel);
+            });
+
+            // 更新标题
+            const headerTitle = document.querySelector('.drawer-header h2');
+            if (panel === 'favorites') {
+                headerTitle.innerHTML = '📚 我的收藏 <span class="count" id="favCount">(0)</span>';
+                loadFavorites();
+            } else {
+                headerTitle.innerHTML = '🕐 浏览历史';
+                loadHistory();
+            }
+        }
+
+        // ============================================================
+        // 加载收藏列表
+        // ============================================================
+        async function loadFavorites() {
+            const body = document.getElementById('drawerBody');
+            body.innerHTML = '<div class="list-empty"><span class="empty-icon">⏳</span><p>加载中...</p></div>';
+
+            try {
+                const data = await favoriteApi.list();
+
+                // 更新收藏数量
+                const countEl = document.getElementById('favCount');
+                if (countEl) countEl.textContent = `(${data.length})`;
+
+                if (!data || data.length === 0) {
+                    body.innerHTML = `
+                        <div class="list-empty">
+                            <span class="empty-icon">📭</span>
+                            <p>还没有收藏任何内容</p>
+                            <p style="font-size:0.8rem;margin-top:4px;">在主页点击 ❤️ 收藏 按钮来添加</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                data.forEach(item => {
+                    const badgeClass = item.category === 'joke' ? 'badge-joke' : 'badge-quote';
+                    const badgeText = item.category === 'joke' ? '😄 笑话' : '💪 鸡汤';
+                    html += `
+                        <div class="list-item">
+                            <div class="item-text">${escapeHtml(item.content)}</div>
+                            <div class="item-meta">
+                                <span class="badge ${badgeClass}">${badgeText}</span>
+                                ${item.author ? `<span>—— ${escapeHtml(item.author)}</span>` : ''}
+                                <span>${formatDate(item.created_at)}</span>
+                            </div>
+                            <div class="item-actions">
+                                <button onclick="deleteFavorite(${item.id})" title="取消收藏">🗑</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                body.innerHTML = html;
+            } catch (error) {
+                body.innerHTML = `
+                    <div class="list-empty">
+                        <span class="empty-icon">😅</span>
+                        <p>加载失败: ${escapeHtml(error.message)}</p>
+                        <button class="btn btn-ghost btn-sm" onclick="loadFavorites()" style="margin-top:12px;">重新加载</button>
+                    </div>
+                `;
+            }
+        }
+
+        // ============================================================
+        // 加载浏览历史
+        // ============================================================
+        async function loadHistory() {
+            const body = document.getElementById('drawerBody');
+            body.innerHTML = '<div class="list-empty"><span class="empty-icon">⏳</span><p>加载中...</p></div>';
+
+            try {
+                const data = await contentApi.getHistory(100);
+
+                if (!data || data.length === 0) {
+                    body.innerHTML = `
+                        <div class="list-empty">
+                            <span class="empty-icon">🕐</span>
+                            <p>还没有浏览记录</p>
+                            <p style="font-size:0.8rem;margin-top:4px;">在主页获取内容后，记录会自动保存</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '';
+                data.forEach(item => {
+                    const badgeClass = item.category === 'joke' ? 'badge-joke' : 'badge-quote';
+                    const badgeText = item.category === 'joke' ? '😄 笑话' : '💪 鸡汤';
+                    html += `
+                        <div class="list-item">
+                            <div class="item-text">${escapeHtml(item.content)}</div>
+                            <div class="item-meta">
+                                <span class="badge ${badgeClass}">${badgeText}</span>
+                                ${item.author ? `<span>—— ${escapeHtml(item.author)}</span>` : ''}
+                                <span>${formatDate(item.viewed_at)}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // 添加清空历史按钮
+                html += `
+                    <div style="text-align:center;padding:12px 0;">
+                        <button class="btn btn-ghost btn-sm" onclick="clearHistory()" style="color:var(--error);">
+                            🗑 清空浏览历史
+                        </button>
+                    </div>
+                `;
+
+                body.innerHTML = html;
+            } catch (error) {
+                body.innerHTML = `
+                    <div class="list-empty">
+                        <span class="empty-icon">😅</span>
+                        <p>加载失败: ${escapeHtml(error.message)}</p>
+                        <button class="btn btn-ghost btn-sm" onclick="loadHistory()" style="margin-top:12px;">重新加载</button>
+                    </div>
+                `;
+            }
+        }
+
+        // ============================================================
+        // 删除收藏
+        // ============================================================
+        async function deleteFavorite(id) {
+            if (!confirm('确定取消收藏吗？')) return;
+
+            try {
+                await favoriteApi.remove(id);
+                showToast('已取消收藏', 'info');
+                loadFavorites(); // 刷新列表
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // 清空历史
+        // ============================================================
+        async function clearHistory() {
+            if (!confirm('确定清空所有浏览历史吗？此操作不可撤回。')) return;
+
+            try {
+                await contentApi.clearHistory();
+                showToast('浏览历史已清空', 'info');
+                loadHistory(); // 刷新列表
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // 退出登录
+        // ============================================================
+        function handleLogout() {
+            if (confirm('确定要退出登录吗？')) {
+                logout();
+            }
+        }
+
+        // ============================================================
+        // 工具函数
+        // ============================================================
+
+        /** HTML 转义，防止 XSS */
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        /** 格式化日期为友好显示 */
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+
+            // 1分钟内
+            if (diff < 60000) return '刚刚';
+            // 1小时内
+            if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+            // 今天
+            if (date.toDateString() === now.toDateString()) {
+                return `今天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+            }
+            // 昨天
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            if (date.toDateString() === yesterday.toDateString()) {
+                return `昨天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+            }
+            // 更早
+            return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>
