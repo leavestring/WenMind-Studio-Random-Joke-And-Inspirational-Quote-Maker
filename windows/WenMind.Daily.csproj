@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>wenmind.ico</ApplicationIcon>
     <AssemblyTitle>WenMind 每日一言</AssemblyTitle>
-    <Version>0.1.3</Version>
+    <Version>0.1.4</Version>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="wenmind.ico" />

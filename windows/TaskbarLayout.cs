@@ -134,6 +134,40 @@ internal static class TaskbarLayout
             return new Rectangle(right - width, bar.Top + (bar.Height - height) / 2, width, height);
         }
     }
+
+    internal static Rectangle? FindSpaceBesideQuickSettings(TaskbarSnapshot snapshot, Rectangle slot, Rectangle panel)
+    {
+        int gap = snapshot.Pixels(8);
+        int top = snapshot.Bounds.Top - gap - slot.Height;
+        if (top < snapshot.Monitor.Top + gap)
+            return null;
+
+        int leftEdge = snapshot.Monitor.Left + gap;
+        int rightEdge = snapshot.Monitor.Right - gap;
+        var stripArea = Rectangle.FromLTRB(leftEdge, top, rightEdge, top + slot.Height);
+        panel.Inflate(gap, gap);
+        if (!stripArea.IntersectsWith(panel))
+            return Place(leftEdge, rightEdge);
+
+        Rectangle? left = Place(leftEdge, Math.Min(rightEdge, panel.Left));
+        Rectangle? right = Place(Math.Max(leftEdge, panel.Right), rightEdge);
+        if (left is not { } leftSlot || right is not { } rightSlot)
+            return left ?? right;
+
+        return Distance(leftSlot) <= Distance(rightSlot) ? leftSlot : rightSlot;
+
+        Rectangle? Place(int left, int right)
+        {
+            int width = Math.Min(slot.Width, right - left);
+            if (width < snapshot.Pixels(150))
+                return null;
+
+            return new Rectangle(Math.Clamp(slot.Left, left, right - width), top, width, slot.Height);
+        }
+
+        int Distance(Rectangle candidate) =>
+            Math.Abs((candidate.Left + candidate.Right) - (slot.Left + slot.Right));
+    }
 }
 
 internal static class Native
@@ -141,6 +175,7 @@ internal static class Native
     private static readonly nint Topmost = new(-1);
     private const uint ForegroundEvent = 0x0003;
     private const uint SkipOwnProcess = 0x0002;
+    private const int ExtendedFrameBounds = 9;
 
     internal delegate void WinEventCallback(nint hook, uint eventType, nint window, int objectId, int childId,
         uint threadId, uint eventTime);
@@ -166,14 +201,27 @@ internal static class Native
         if (window == 0 || window == taskbar || window == GetShellWindow())
             return false;
 
-        if (DwmGetWindowAttribute(window, 9, out var bounds, Marshal.SizeOf<Rect>()) != 0 &&
-            !GetWindowRect(window, out bounds))
+        if (!TryGetFrame(window, out var bounds))
             return false;
 
         const int tolerance = 2;
         return bounds.Left <= monitor.Left + tolerance && bounds.Top <= monitor.Top + tolerance &&
             bounds.Right >= monitor.Right - tolerance && bounds.Bottom >= monitor.Bottom - tolerance;
     }
+
+    public static Rectangle? QuickSettingsBounds(Rectangle monitor)
+    {
+        nint panel = FindWindow("ControlCenterWindow", null);
+        if (panel == 0 || !IsWindowVisible(panel) || !TryGetFrame(panel, out var bounds))
+            return null;
+
+        Rectangle frame = bounds.Rectangle;
+        return frame.IntersectsWith(monitor) ? frame : null;
+    }
+
+    private static bool TryGetFrame(nint window, out Rect bounds) =>
+        DwmGetWindowAttribute(window, ExtendedFrameBounds, out bounds, Marshal.SizeOf<Rect>()) == 0 ||
+        GetWindowRect(window, out bounds);
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct Rect

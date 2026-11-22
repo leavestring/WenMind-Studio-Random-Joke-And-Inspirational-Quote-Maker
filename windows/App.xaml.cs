@@ -32,6 +32,7 @@ public partial class App : Application
     private Mutex? instance;
     private DailyQuote? daily;
     private Rectangle? slot;
+    private Rectangle? displayedSlot;
     private TaskbarSnapshot? placedOn;
     private long lastPlacement;
     private Native.WinEventCallback? foregroundCallback;
@@ -203,7 +204,7 @@ public partial class App : Application
         {
             HideStrip();
         }
-        else if (raiseExisting && slot is { } current && !strip.ShowAt(current))
+        else if (raiseExisting && placedOn is { } taskbar && slot is { } current && !ShowStrip(taskbar, current))
         {
             HideStrip();
         }
@@ -232,7 +233,7 @@ public partial class App : Application
                 return;
             }
 
-            if (scan.Slot is not { } bounds || !strip.ShowAt(bounds))
+            if (scan.Slot is not { } bounds || !ShowStrip(snapshot, bounds))
             {
                 HideStrip();
                 return;
@@ -252,11 +253,25 @@ public partial class App : Application
         snapshot is not null && placedOn == snapshot && slot is not null &&
         Stopwatch.GetElapsedTime(lastPlacement) <= PlacementGracePeriod;
 
+    private bool ShowStrip(TaskbarSnapshot taskbar, Rectangle bounds)
+    {
+        Rectangle? quickSettings = Native.QuickSettingsBounds(taskbar.Monitor);
+        Rectangle? display = quickSettings is { } panel
+            ? TaskbarLayout.FindSpaceBesideQuickSettings(taskbar, bounds, panel)
+            : bounds;
+        if (display is not { } actual || !strip.ShowAt(actual, floating: quickSettings is not null))
+            return false;
+
+        displayedSlot = actual;
+        return true;
+    }
+
     private void HideStrip()
     {
         if (strip.IsVisible)
             strip.Hide();
         slot = null;
+        displayedSlot = null;
         placedOn = null;
     }
 
@@ -270,7 +285,7 @@ public partial class App : Application
 
         UpdateCard();
         card.SetRefreshing(loadingQuote);
-        card.OpenNear(slot);
+        card.OpenNear(displayedSlot);
     }
 
     private void UpdateCard() =>
