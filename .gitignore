@@ -18,3 +18,8 @@ Thumbs.db
 
 # Environment
 .env
+
+# Windows desktop app outputs
+/windows/bin/
+/windows/obj/
+/windows/dist/

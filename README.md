@@ -2,6 +2,8 @@
 
 > 随机笑话与鸡汤文案生成收藏系统 — 获取每日份的快乐与温暖
 
+**Windows 11 版**：[WenMind 每日一言](windows/README.md)在任务栏空档显示当天的名言，可随时从系统托盘隐藏或退出。
+
 ![Python](https://img.shields.io/badge/Python-3.9+-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
 ![SQLite](https://img.shields.io/badge/SQLite-3-lightblue)
