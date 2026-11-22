@@ -16,7 +16,13 @@ internal sealed record Quote(string Text, string Author, string Work, string Pro
             .Where(value => value.Length > 0));
 }
 
-internal sealed record DailyQuote(DateOnly Date, Quote Quote);
+internal sealed record DailyQuote(DateOnly Date, Quote Quote, DateTimeOffset? RefreshedAt = null)
+{
+    public bool NeedsRefresh(DateTimeOffset now, int? minutes) =>
+        minutes is { } interval
+            ? RefreshedAt is not { } refreshed || refreshed > now || now - refreshed >= TimeSpan.FromMinutes(interval)
+            : Date != DateOnly.FromDateTime(now.DateTime);
+}
 
 internal sealed class QuoteService(LocalState state) : IDisposable
 {
@@ -43,24 +49,38 @@ internal sealed class QuoteService(LocalState state) : IDisposable
         new("凡益之道，与时偕行。", "", "《周易》", "本地句库"),
     ];
 
-    public async Task<DailyQuote> LoadAsync(DateOnly date, CancellationToken cancellation)
+    public DailyQuote? ReadCache(DateTimeOffset now)
     {
         DailyQuote? saved = state.Read<DailyQuote>(CacheName);
-        if (saved?.Date == date && saved.Quote is { Text.Length: > 0, Author: not null, Work: not null, Provider: not null })
-            return saved;
+        if (saved?.Quote is not { Text.Length: > 0, Author: not null, Work: not null, Provider: not null })
+            return null;
 
-        Quote quote = await FetchAsync(cancellation).ConfigureAwait(false) ??
-            LocalQuotes[date.DayNumber % LocalQuotes.Length];
-        cancellation.ThrowIfCancellationRequested();
-        DailyQuote daily = new(date, quote);
-        state.Write(CacheName, daily);
-        return daily;
+        if (saved.RefreshedAt is null && saved.Date == DateOnly.FromDateTime(now.DateTime))
+        {
+            saved = saved with { RefreshedAt = now };
+            Save(saved);
+        }
+
+        return saved;
     }
 
-    public static Quote Browse(Quote daily, Quote? previous)
+    public void Save(DailyQuote quote) => state.Write(CacheName, quote);
+
+    public async Task<Quote> FetchNextAsync(Quote? previous, bool daily, CancellationToken cancellation)
     {
-        Quote[] choices = LocalQuotes.Where(quote => quote.Text != daily.Text && quote.Text != previous?.Text).ToArray();
-        return Random.Shared.GetItems(choices, 1)[0];
+        Quote? online = await FetchAsync(cancellation).ConfigureAwait(false);
+        cancellation.ThrowIfCancellationRequested();
+        if (online is not null && online.Text != previous?.Text)
+            return online;
+
+        Quote dailyFallback = LocalQuotes[DateOnly.FromDateTime(DateTime.Now).DayNumber % LocalQuotes.Length];
+        return daily && dailyFallback.Text != previous?.Text ? dailyFallback : Browse(previous, null);
+    }
+
+    public static Quote Browse(Quote? current, Quote? previous)
+    {
+        Quote[] choices = LocalQuotes.Where(quote => quote.Text != current?.Text && quote.Text != previous?.Text).ToArray();
+        return choices[Random.Shared.Next(choices.Length)];
     }
 
     private async Task<Quote?> FetchAsync(CancellationToken cancellation)

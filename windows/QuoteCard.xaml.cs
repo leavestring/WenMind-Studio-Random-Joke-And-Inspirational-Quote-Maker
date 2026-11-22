@@ -14,12 +14,12 @@ internal partial class QuoteCard : Window
     private Rectangle work;
     private System.Drawing.Point anchor;
 
-    public QuoteCard(Action browse, Action today)
+    public QuoteCard(Action browse, Action current)
     {
         InitializeComponent();
-        CloseButton.Click += (_, _) => Hide();
+        CloseButton.Click += (_, _) => Close();
         NextButton.Click += (_, _) => browse();
-        TodayButton.Click += (_, _) => today();
+        TodayButton.Click += (_, _) => current();
         CopyButton.Click += (_, _) => Copy();
         SizeChanged += (_, _) => Position();
         PreviewKeyDown += (_, args) =>
@@ -27,22 +27,23 @@ internal partial class QuoteCard : Window
             if (args.Key == Key.Escape)
             {
                 args.Handled = true;
-                Hide();
+                Close();
             }
         };
     }
 
-    public void SetQuote(Quote? quote, bool preview)
+    public void SetQuote(Quote? quote, bool preview, bool daily)
     {
         shown = quote;
-        Heading.Text = preview ? "随手翻一条" : "今日一言";
-        FullText.Text = quote?.Text ?? "正在准备今日一言…";
+        Heading.Text = preview ? "随手翻一条" : daily ? "今日一言" : "当前名言";
+        FullText.Text = quote?.Text ?? "正在准备名言…";
         Attribution.Text = quote?.Attribution ?? "";
         Attribution.Visibility = Attribution.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         Provider.Text = quote?.Provider ?? "";
         Provider.Visibility = quote is null ? Visibility.Collapsed : Visibility.Visible;
         NextButton.IsEnabled = CopyButton.IsEnabled = quote is not null;
         CopyButton.Content = "复制";
+        TodayButton.Content = daily ? "回到今日" : "回到当前";
         TodayButton.Visibility = preview ? Visibility.Visible : Visibility.Collapsed;
     }
 

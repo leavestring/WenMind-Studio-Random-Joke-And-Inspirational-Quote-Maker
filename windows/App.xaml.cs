@@ -22,7 +22,8 @@ public partial class App : Application
     };
     private QuoteService service = null!;
     private QuoteStrip strip = null!;
-    private QuoteCard card = null!;
+    private QuoteCard? card;
+    private RefreshSettingsWindow? settingsWindow;
     private Forms.NotifyIcon? tray;
     private Forms.ToolStripMenuItem visibilityItem = null!;
     private Forms.ToolStripMenuItem startupItem = null!;
@@ -32,7 +33,7 @@ public partial class App : Application
     private Quote? preview;
     private Rectangle? slot;
     private long lastPlacement;
-    private bool showStrip;
+    private AppSettings settings = new();
     private bool checkingPlacement;
     private bool loadingQuote;
 
@@ -47,11 +48,15 @@ public partial class App : Application
         }
 
         Palette.Apply(Resources);
-        showStrip = state.Read<Settings>(SettingsName)?.ShowStrip ?? true;
+        settings = state.Read<AppSettings>(SettingsName) ?? new AppSettings();
+        if (settings.RefreshMinutes is < AppSettings.MinimumMinutes or > AppSettings.MaximumMinutes)
+            settings = settings with { RefreshMinutes = null };
         service = new QuoteService(state);
         strip = new QuoteStrip(OpenDetails);
-        card = new QuoteCard(Browse, BackToToday);
         CreateTray();
+        daily = service.ReadCache(DateTimeOffset.Now);
+        if (daily is not null)
+            ShowCurrentQuote(daily.Quote);
         SystemEvents.UserPreferenceChanged += ThemeChanged;
         timer.Tick += (_, _) => Refresh();
         timer.Start();
@@ -63,15 +68,16 @@ public partial class App : Application
         using var resource = GetResourceStream(new Uri("wenmind.ico", UriKind.Relative)).Stream;
         using var original = new Icon(resource);
         icon = (Icon)original.Clone();
-        var openItem = new Forms.ToolStripMenuItem("查看今日一言", null, (_, _) => OpenDetails());
+        var openItem = new Forms.ToolStripMenuItem("查看名言", null, (_, _) => OpenDetails());
         visibilityItem = new Forms.ToolStripMenuItem(VisibilityLabel, null, (_, _) => ToggleStrip());
+        var settingsItem = new Forms.ToolStripMenuItem("设置…", null, (_, _) => OpenSettings());
         startupItem = new Forms.ToolStripMenuItem("登录时启动", null, (_, _) => ToggleLoginStartup())
         {
             Checked = LocalState.StartupEnabled(),
         };
         var exitItem = new Forms.ToolStripMenuItem("退出", null, (_, _) => Shutdown());
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.AddRange([openItem, visibilityItem, startupItem, new Forms.ToolStripSeparator(), exitItem]);
+        menu.Items.AddRange([openItem, visibilityItem, settingsItem, startupItem, new Forms.ToolStripSeparator(), exitItem]);
         menu.Opening += (_, _) => startupItem.Checked = LocalState.StartupEnabled();
         tray = new Forms.NotifyIcon
         {
@@ -87,15 +93,41 @@ public partial class App : Application
         };
     }
 
-    private string VisibilityLabel => showStrip ? "隐藏任务栏文字" : "显示任务栏文字";
+    private string VisibilityLabel => settings.ShowStrip ? "隐藏任务栏文字" : "显示任务栏文字";
 
     private void ToggleStrip()
     {
-        showStrip = !showStrip;
-        if (!state.Write(SettingsName, new Settings(showStrip)))
+        settings = settings with { ShowStrip = !settings.ShowStrip };
+        if (!state.Write(SettingsName, settings))
             tray?.ShowBalloonTip(2500, "WenMind", "本次已切换，设置未能保存。", Forms.ToolTipIcon.Info);
         visibilityItem.Text = VisibilityLabel;
         Refresh();
+    }
+
+    private void OpenSettings()
+    {
+        if (settingsWindow is not null)
+        {
+            settingsWindow.Activate();
+            return;
+        }
+
+        settingsWindow = new RefreshSettingsWindow(settings.RefreshMinutes, SaveRefreshMinutes);
+        settingsWindow.Closed += (_, _) => settingsWindow = null;
+        settingsWindow.Show();
+        settingsWindow.Activate();
+    }
+
+    private bool SaveRefreshMinutes(int? minutes)
+    {
+        AppSettings updated = settings with { RefreshMinutes = minutes };
+        if (!state.Write(SettingsName, updated))
+            return false;
+
+        settings = updated;
+        UpdateCard();
+        Refresh();
+        return true;
     }
 
     private void ToggleLoginStartup()
@@ -108,35 +140,26 @@ public partial class App : Application
 
     private void Refresh()
     {
-        _ = RefreshDailyAsync();
+        _ = RefreshQuoteAsync();
         _ = RefreshPlacementAsync();
     }
 
-    private async Task RefreshDailyAsync()
+    private async Task RefreshQuoteAsync()
     {
-        var date = DateOnly.FromDateTime(DateTime.Now);
-        if (loadingQuote || daily?.Date == date)
+        if (loadingQuote || daily?.NeedsRefresh(DateTimeOffset.Now, settings.RefreshMinutes) == false)
             return;
 
         loadingQuote = true;
         try
         {
-            DailyQuote loaded = await service.LoadAsync(date, shutdown.Token);
-            if (shutdown.IsCancellationRequested || loaded.Date != DateOnly.FromDateTime(DateTime.Now))
+            Quote next = await service.FetchNextAsync(daily?.Quote, settings.RefreshMinutes is null, shutdown.Token);
+            var now = DateTimeOffset.Now;
+            if (shutdown.IsCancellationRequested || daily?.NeedsRefresh(now, settings.RefreshMinutes) == false)
                 return;
 
-            daily = loaded;
-            preview = null;
-            strip.SetQuote(loaded.Quote);
-            card.SetQuote(loaded.Quote, preview: false);
-            string text = loaded.Quote.Text.ReplaceLineEndings(" ");
-            if (text.Length > 58)
-            {
-                int cutoff = Array.FindLast(StringInfo.ParseCombiningCharacters(text), index => index <= 56);
-                text = text[..cutoff] + "…";
-            }
-            if (tray is not null)
-                tray.Text = text;
+            daily = new DailyQuote(DateOnly.FromDateTime(now.DateTime), next, now);
+            service.Save(daily);
+            ShowCurrentQuote(next);
             await RefreshPlacementAsync();
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
@@ -148,9 +171,25 @@ public partial class App : Application
         }
     }
 
+    private void ShowCurrentQuote(Quote quote)
+    {
+        strip.SetQuote(quote);
+        if (preview is null)
+            UpdateCard();
+
+        string text = quote.Text.ReplaceLineEndings(" ");
+        if (text.Length > 58)
+        {
+            int cutoff = Array.FindLast(StringInfo.ParseCombiningCharacters(text), index => index <= 56);
+            text = text[..cutoff] + "…";
+        }
+        if (tray is not null)
+            tray.Text = text;
+    }
+
     private async Task RefreshPlacementAsync()
     {
-        TaskbarSnapshot? snapshot = showStrip && daily is not null ? TaskbarLayout.Capture() : null;
+        TaskbarSnapshot? snapshot = settings.ShowStrip && daily is not null ? TaskbarLayout.Capture() : null;
         if (snapshot is null || Stopwatch.GetElapsedTime(lastPlacement) > TimeSpan.FromSeconds(2.5))
             HideStrip();
         if (snapshot is null || checkingPlacement)
@@ -163,7 +202,7 @@ public partial class App : Application
             if (shutdown.IsCancellationRequested)
                 return;
 
-            if (showStrip && found is { } bounds && TaskbarLayout.Capture() == snapshot && strip.ShowAt(bounds))
+            if (settings.ShowStrip && found is { } bounds && TaskbarLayout.Capture() == snapshot && strip.ShowAt(bounds))
             {
                 slot = bounds;
                 lastPlacement = Stopwatch.GetTimestamp();
@@ -188,14 +227,24 @@ public partial class App : Application
 
     private void OpenDetails()
     {
-        BackToToday();
+        if (card is null)
+        {
+            card = new QuoteCard(Browse, ReturnToCurrent);
+            card.Closed += (_, _) =>
+            {
+                card = null;
+                preview = null;
+            };
+        }
+
+        ReturnToCurrent();
         card.OpenNear(slot);
     }
 
-    private void BackToToday()
+    private void ReturnToCurrent()
     {
         preview = null;
-        card.SetQuote(daily?.Quote, preview: false);
+        UpdateCard();
     }
 
     private void Browse()
@@ -203,8 +252,11 @@ public partial class App : Application
         if (daily is not { Quote: var quote })
             return;
         preview = QuoteService.Browse(quote, preview);
-        card.SetQuote(preview, preview: true);
+        UpdateCard();
     }
+
+    private void UpdateCard() =>
+        card?.SetQuote(preview ?? daily?.Quote, preview is not null, settings.RefreshMinutes is null);
 
     private void ThemeChanged(object sender, UserPreferenceChangedEventArgs e) =>
         _ = Dispatcher.InvokeAsync(() => Palette.Apply(Resources));
@@ -227,6 +279,4 @@ public partial class App : Application
         shutdown.Dispose();
         base.OnExit(e);
     }
-
-    private sealed record Settings(bool ShowStrip);
 }

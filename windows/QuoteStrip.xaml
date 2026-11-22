@@ -6,7 +6,7 @@
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ShowActivated="False" Topmost="True">
     <Button x:Name="QuoteButton" Focusable="False" Padding="8,0" Cursor="Hand"
-            AutomationProperties.Name="查看今日一言" ToolTip="查看今日一言">
+            AutomationProperties.Name="查看名言" ToolTip="查看名言">
         <Button.Template>
             <ControlTemplate TargetType="Button">
                 <Border x:Name="Surface" Padding="{TemplateBinding Padding}" CornerRadius="5" Background="#01000000">
