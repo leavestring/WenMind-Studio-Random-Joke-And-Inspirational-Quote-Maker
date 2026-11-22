@@ -1,8 +1,32 @@
-# 🧠 WenMind Studio
+<p align="center">
+  <img src="docs/images/wenmind-logo.png" width="64" height="64" alt="WenMind 双引号标志">
+</p>
+
+<h1 align="center">WenMind</h1>
+
+<p align="center">在 Windows 11 任务栏上，读一句今日名言。</p>
+
+![WenMind 每日一言横版宣传图，展示雾山桌面上的任务栏与名言卡片](docs/images/wenmind-banner.png)
+
+## Windows 11 · 每日一言
+
+WenMind 在主屏底部任务栏的空档显示中文名言。点击短句可看全文、作者和出处，也可以复制或换一句。
+
+- **按你的节奏刷新**。默认每天一条，也可在托盘设置里输入 1–1440 分钟的刷新间隔。
+- **断网也有内容**。优先从一言获取文学和哲学句子，连接失败或遇到近期重复句子时使用内置句库。
+- **随时隐藏或退出**。右键托盘的 WenMind 图标可切换任务栏文字、登录时启动，或结束后台运行。
+
+桌面版使用 C#、.NET 10 与 WPF。安装 .NET 10 SDK 后，在仓库根目录运行以下命令。
+
+```powershell
+dotnet run --project windows/WenMind.Daily.csproj
+```
+
+[查看 Windows 使用与便携包构建说明](windows/README.md)
+
+## Web 版 · WenMind Studio
 
 > 随机笑话与鸡汤文案生成收藏系统 — 获取每日份的快乐与温暖
-
-**Windows 11 版**：[WenMind 每日一言](windows/README.md)在任务栏空档显示当天的名言，可随时从系统托盘隐藏或退出。
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
@@ -11,19 +35,19 @@
 
 ---
 
-## 📋 项目简介
+### 📋 项目简介
 
 WenMind Studio 是一个**前后端分离**的 Web 应用，提供：
 
-- 😄 **随机笑话** — 接入 JokeAPI / Official Joke API，笑料不断
-- 💪 **鸡汤文案** — 接入 ZenQuotes / Quotable API，温暖治愈
+- 😄 **随机笑话** — 从韩小韩 API 获取中文笑话
+- 💪 **鸡汤文案** — 从一言获取中文名言
 - ❤️ **收藏系统** — 收藏喜欢的文案，随时翻阅
 - 🕐 **浏览历史** — 自动记录你的每一次阅读
 - 🔐 **用户系统** — 注册登录，数据完全隔离
 
 ---
 
-## 🏗 项目架构
+### 🏗 项目架构
 
 ```
 wenmind-studio/
@@ -53,28 +77,30 @@ wenmind-studio/
 │       ├── login.html            # 登录页面
 │       ├── register.html         # 注册页面
 │       └── dashboard.html        # 主面板（展示 + 收藏 + 历史）
+├── windows/                       # Windows 11 任务栏客户端
+├── docs/images/                   # README 标志和宣传图
 ├── README.md                     # 本文件
 └── API.md                        # API 接口文档
 ```
 
 ---
 
-## 🚀 快速开始
+### 🚀 快速开始
 
-### 前置要求
+#### 前置要求
 
 - Python 3.9 或更高版本
 - pip（Python 包管理器）
 - 现代浏览器（Chrome / Firefox / Edge）
 
-### 1️⃣ 安装后端依赖
+#### 1️⃣ 安装后端依赖
 
 ```bash
 # 在项目根目录执行
 pip install -r backend/requirements.txt
 ```
 
-### 2️⃣ 启动后端服务
+#### 2️⃣ 启动后端服务
 
 ```bash
 # 在项目根目录执行
@@ -90,7 +116,7 @@ python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
 访问 http://localhost:8000/docs 可查看 Swagger API 文档。
 
-### 3️⃣ 打开前端页面
+#### 3️⃣ 打开前端页面
 
 **方式一（推荐）：使用 VS Code Live Server**
 
@@ -106,9 +132,9 @@ python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 📖 使用指南
+### 📖 使用指南
 
-### 用户注册
+#### 用户注册
 
 1. 打开登录页面，点击「注册新账号」
 2. 输入用户名（2-50字符，支持中文、字母、数字、下划线）
@@ -116,13 +142,13 @@ python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 4. 确认密码，点击「注册」
 5. 注册成功自动跳转到主面板
 
-### 获取内容
+#### 获取内容
 
 1. 主面板顶部有两个 Tab：**😄 随机笑话** 和 **💪 鸡汤文案**
 2. 点击「换一个」按钮获取新的内容
 3. 内容卡片带有翻转动画效果
 
-### 收藏与历史
+#### 收藏与历史
 
 | 功能 | 操作 | 说明 |
 |------|------|------|
@@ -132,29 +158,27 @@ python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 | 🕐 查看历史 | 在侧边抽屉中切换到「历史」Tab | 查看浏览过的所有内容 |
 | 🗑 清空历史 | 在历史列表底部点击「清空浏览历史」| 删除所有历史记录 |
 
-### 其他操作
+#### 其他操作
 
 - **📋 复制** — 一键复制文案到剪贴板
 - **退出登录** — 点击右上角的「退出」按钮
 
 ---
 
-## 🔗 第三方 API 说明
+### 🔗 第三方 API 说明
 
-本项目使用以下公开免费的第三方 API：
+Web 版接入以下内容来源。
 
-| API | 用途 | 官网 | 是否需 Key |
-|-----|------|------|------------|
-| **JokeAPI** | 随机笑话 | [v2.jokeapi.dev](https://v2.jokeapi.dev/) | ❌ 免费无需 Key |
-| **Official Joke API** | 备用笑话源 | [official-joke-api.appspot.com](https://official-joke-api.appspot.com/) | ❌ 免费无需 Key |
-| **ZenQuotes** | 鸡汤/名言 | [zenquotes.io](https://zenquotes.io/) | ❌ 免费无需 Key |
-| **Quotable** | 备用名言 | [api.quotable.io](https://api.quotable.io/) | ❌ 免费无需 Key |
+| API | 用途 | 接入位置 |
+|-----|------|----------|
+| **韩小韩 API** | 中文随机笑话 | [笑话服务](backend/services/joke_service.py) |
+| **一言 Hitokoto** | 中文名言 | [名言服务](backend/services/quote_service.py) |
 
 > 当所有外部 API 都不可用时，系统会自动使用内置的本地备选数据，确保应用不中断。
 
 ---
 
-## 🛠 技术栈
+### 🛠 技术栈
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
@@ -169,7 +193,7 @@ python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 📝 API 一览
+### 📝 API 一览
 
 | 方法 | 路径 | 说明 | 需认证 |
 |------|------|------|--------|
@@ -188,12 +212,12 @@ python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 🌟 功能特点
+### 🌟 功能特点
 
 - ✅ **纯前后端分离** — FastAPI + 原生前端，架构清晰
 - ✅ **统一响应格式** — 所有接口返回 `{ code, message, data }` 结构
 - ✅ **JWT 认证** — 安全的令牌机制，数据完全隔离
-- ✅ **多 API 容错** — 主备 API 切换 + 本地 Fallback 数据
+- ✅ **离线回退** — 第三方 API 不可用时使用内置内容
 - ✅ **密码安全** — bcrypt 哈希存储，绝不保存明文密码
 - ✅ **毛玻璃 UI** — 现代简约的 Glassmorphism 设计风格
 - ✅ **响应式布局** — 适配桌面端和移动端
