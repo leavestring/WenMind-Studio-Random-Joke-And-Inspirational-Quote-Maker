@@ -39,6 +39,12 @@ WenMind 是一个 Windows 11 后台小程序。打开后，中文名言就出现
 
 目前支持 **Windows 11 主屏的底部任务栏**。当任务栏开启自动隐藏、屏幕进入全屏或可用空间不足时，可以从托盘查看名言。Windows 快速设置也可能暂时挡住文字。本机测试中，按 `Esc` 或 `Win+A` 关闭快速设置，比再次点击右下角的托盘按钮更容易立即恢复。
 
+## 名言来源与致谢
+
+WenMind 接入 **一言 Hitokoto 语句 API**。应用请求 `https://v1.hitokoto.cn/` 的文学（`c=d`）与哲学（`c=k`）分类，从返回的 JSON 中读取名言、作者和出处。[一言 API 文档](https://developer.hitokoto.cn/sentence/)
+
+感谢萌创团队运营一言公益服务，也感谢为一言语句库投稿和参与维护的贡献者。[一言 Hitokoto](https://hitokoto.cn/)
+
 ## 开发与构建
 
 桌面应用使用 **C#、.NET 10 和 WPF**。安装 .NET 10 SDK 后，在仓库根目录执行以下命令。
