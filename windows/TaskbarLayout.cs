@@ -13,6 +13,8 @@ internal sealed record TaskbarSnapshot(nint Handle, Rectangle Bounds, Rectangle 
     public int Pixels(int dip) => (int)Math.Round(dip * Dpi / 96.0);
 }
 
+internal readonly record struct TaskbarScan(bool Complete, Rectangle? Slot, bool PreviousSlotOccupied);
+
 internal static class TaskbarLayout
 {
     private static readonly ControlType[] InteractiveTypes =
@@ -48,7 +50,7 @@ internal static class TaskbarLayout
         return new TaskbarSnapshot(handle, bounds, screen, dpi);
     }
 
-    public static Rectangle? FindSlot(TaskbarSnapshot snapshot)
+    public static TaskbarScan FindSlot(TaskbarSnapshot snapshot, Rectangle? previous)
     {
         try
         {
@@ -86,14 +88,24 @@ internal static class TaskbarLayout
                 }
             }
 
-            // Keep the overlay hidden when Explorer is rebuilding the taskbar or has an unknown layout.
-            return startFound && trayFound ? FindFreeSpace(snapshot, occupied) : null;
+            return Evaluate(snapshot, occupied, startFound && trayFound, previous);
         }
         catch (Exception ex) when (ex is ElementNotAvailableException or COMException or
             InvalidOperationException or ArgumentException or Win32Exception)
         {
-            return null;
+            return default;
         }
+    }
+
+    internal static TaskbarScan Evaluate(TaskbarSnapshot snapshot, List<Rectangle> occupied,
+        bool complete, Rectangle? previous)
+    {
+        if (complete)
+            return new TaskbarScan(true, FindFreeSpace(snapshot, occupied), false);
+
+        // A partial tree may still show that the old slot has been taken by a button.
+        bool overlaps = previous is { } oldSlot && occupied.Exists(oldSlot.IntersectsWith);
+        return new TaskbarScan(false, null, overlaps);
     }
 
     internal static Rectangle? FindFreeSpace(TaskbarSnapshot snapshot, IEnumerable<Rectangle> occupied)
@@ -127,6 +139,14 @@ internal static class TaskbarLayout
 internal static class Native
 {
     private static readonly nint Topmost = new(-1);
+    private const uint ForegroundEvent = 0x0003;
+    private const uint SkipOwnProcess = 0x0002;
+
+    internal delegate void WinEventCallback(nint hook, uint eventType, nint window, int objectId, int childId,
+        uint threadId, uint eventTime);
+
+    public static nint WatchForeground(WinEventCallback callback) =>
+        SetWinEventHook(ForegroundEvent, ForegroundEvent, 0, callback, 0, 0, SkipOwnProcess);
 
     public static bool PlaceWithoutActivating(nint window, Rectangle rectangle) =>
         SetWindowPos(window, Topmost, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, 0x0210);
@@ -218,4 +238,11 @@ internal static class Native
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongW")]
     private static extern int SetWindowLong(nint window, int index, int value);
+
+    [DllImport("user32.dll")]
+    private static extern nint SetWinEventHook(uint eventMin, uint eventMax, nint module, WinEventCallback callback,
+        uint processId, uint threadId, uint flags);
+
+    [DllImport("user32.dll")]
+    internal static extern bool UnhookWinEvent(nint hook);
 }

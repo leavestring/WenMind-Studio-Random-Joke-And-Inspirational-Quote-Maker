@@ -14,12 +14,11 @@ internal partial class QuoteCard : Window
     private Rectangle work;
     private System.Drawing.Point anchor;
 
-    public QuoteCard(Action browse, Action current)
+    public QuoteCard(Action refresh)
     {
         InitializeComponent();
         CloseButton.Click += (_, _) => Close();
-        NextButton.Click += (_, _) => browse();
-        TodayButton.Click += (_, _) => current();
+        NextButton.Click += (_, _) => refresh();
         CopyButton.Click += (_, _) => Copy();
         SizeChanged += (_, _) => Position();
         PreviewKeyDown += (_, args) =>
@@ -32,19 +31,23 @@ internal partial class QuoteCard : Window
         };
     }
 
-    public void SetQuote(Quote? quote, bool preview, bool daily)
+    public void SetQuote(Quote? quote, bool daily)
     {
         shown = quote;
-        Heading.Text = preview ? "随手翻一条" : daily ? "今日一言" : "当前名言";
+        Heading.Text = daily ? "今日一言" : "当前名言";
         FullText.Text = quote?.Text ?? "正在准备名言…";
         Attribution.Text = quote?.Attribution ?? "";
         Attribution.Visibility = Attribution.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         Provider.Text = quote?.Provider ?? "";
         Provider.Visibility = quote is null ? Visibility.Collapsed : Visibility.Visible;
-        NextButton.IsEnabled = CopyButton.IsEnabled = quote is not null;
+        CopyButton.IsEnabled = quote is not null;
         CopyButton.Content = "复制";
-        TodayButton.Content = daily ? "回到今日" : "回到当前";
-        TodayButton.Visibility = preview ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public void SetRefreshing(bool refreshing)
+    {
+        NextButton.IsEnabled = !refreshing;
+        NextButton.Content = refreshing ? "更新中…" : "换一句";
     }
 
     public void OpenNear(Rectangle? strip)

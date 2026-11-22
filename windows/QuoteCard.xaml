@@ -62,14 +62,11 @@
                     <TextBlock x:Name="Provider" FontSize="11" Margin="0,5,0,0" Foreground="{DynamicResource Secondary}" />
                 </StackPanel>
             </ScrollViewer>
-            <DockPanel Grid.Row="2" LastChildFill="True">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button x:Name="NextButton" Content="换一句" Margin="0,0,7,0" />
-                    <Button x:Name="CopyButton" Content="复制" />
-                </StackPanel>
-                <Button x:Name="TodayButton" Content="回到今日" HorizontalAlignment="Left" Background="Transparent"
-                        Visibility="Collapsed" />
-            </DockPanel>
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="NextButton" Content="换一句" Margin="0,0,7,0"
+                        AutomationProperties.Name="换一句" />
+                <Button x:Name="CopyButton" Content="复制" />
+            </StackPanel>
         </Grid>
     </Border>
 </Window>

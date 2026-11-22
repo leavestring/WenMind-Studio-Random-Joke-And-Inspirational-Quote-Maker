@@ -14,6 +14,7 @@ namespace WenMind.Daily;
 public partial class App : Application
 {
     private const string SettingsName = "settings.json";
+    private static readonly TimeSpan PlacementGracePeriod = TimeSpan.FromSeconds(2.5);
     private readonly LocalState state = new();
     private readonly CancellationTokenSource shutdown = new();
     private readonly DispatcherTimer timer = new(DispatcherPriority.Background)
@@ -30,9 +31,11 @@ public partial class App : Application
     private Icon? icon;
     private Mutex? instance;
     private DailyQuote? daily;
-    private Quote? preview;
     private Rectangle? slot;
+    private TaskbarSnapshot? placedOn;
     private long lastPlacement;
+    private Native.WinEventCallback? foregroundCallback;
+    private nint foregroundHook;
     private AppSettings settings = new();
     private bool checkingPlacement;
     private bool loadingQuote;
@@ -58,6 +61,12 @@ public partial class App : Application
         if (daily is not null)
             ShowCurrentQuote(daily.Quote);
         SystemEvents.UserPreferenceChanged += ThemeChanged;
+        foregroundCallback = (_, _, _, _, _, _, _) => _ = Dispatcher.InvokeAsync(() =>
+        {
+            if (!shutdown.IsCancellationRequested)
+                _ = RefreshPlacementAsync(raiseExisting: true);
+        });
+        foregroundHook = Native.WatchForeground(foregroundCallback);
         timer.Tick += (_, _) => Refresh();
         timer.Start();
         Refresh();
@@ -144,23 +153,23 @@ public partial class App : Application
         _ = RefreshPlacementAsync();
     }
 
-    private async Task RefreshQuoteAsync()
+    private async Task RefreshQuoteAsync(bool manual = false)
     {
-        if (loadingQuote || daily?.NeedsRefresh(DateTimeOffset.Now, settings.RefreshMinutes) == false)
+        if (loadingQuote || (!manual && daily?.NeedsRefresh(DateTimeOffset.Now, settings.RefreshMinutes) == false))
             return;
 
         loadingQuote = true;
+        card?.SetRefreshing(true);
         try
         {
-            Quote next = await service.FetchNextAsync(daily?.Quote, settings.RefreshMinutes is null, shutdown.Token);
+            Quote next = await service.FetchNextAsync(!manual && settings.RefreshMinutes is null, shutdown.Token);
             var now = DateTimeOffset.Now;
-            if (shutdown.IsCancellationRequested || daily?.NeedsRefresh(now, settings.RefreshMinutes) == false)
+            if (shutdown.IsCancellationRequested || (!manual && daily?.NeedsRefresh(now, settings.RefreshMinutes) == false))
                 return;
 
             daily = new DailyQuote(DateOnly.FromDateTime(now.DateTime), next, now);
             service.Save(daily);
             ShowCurrentQuote(next);
-            await RefreshPlacementAsync();
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
         {
@@ -168,14 +177,14 @@ public partial class App : Application
         finally
         {
             loadingQuote = false;
+            card?.SetRefreshing(false);
         }
     }
 
     private void ShowCurrentQuote(Quote quote)
     {
         strip.SetQuote(quote);
-        if (preview is null)
-            UpdateCard();
+        UpdateCard();
 
         string text = quote.Text.ReplaceLineEndings(" ");
         if (text.Length > 58)
@@ -187,30 +196,51 @@ public partial class App : Application
             tray.Text = text;
     }
 
-    private async Task RefreshPlacementAsync()
+    private async Task RefreshPlacementAsync(bool raiseExisting = false)
     {
         TaskbarSnapshot? snapshot = settings.ShowStrip && daily is not null ? TaskbarLayout.Capture() : null;
-        if (snapshot is null || Stopwatch.GetElapsedTime(lastPlacement) > TimeSpan.FromSeconds(2.5))
+        if (!CanKeepPlacement(snapshot))
+        {
             HideStrip();
+        }
+        else if (raiseExisting && slot is { } current && !strip.ShowAt(current))
+        {
+            HideStrip();
+        }
+
         if (snapshot is null || checkingPlacement)
             return;
 
         checkingPlacement = true;
+        Rectangle? previous = slot;
         try
         {
-            Rectangle? found = await Task.Run(() => TaskbarLayout.FindSlot(snapshot));
+            TaskbarScan scan = await Task.Run(() => TaskbarLayout.FindSlot(snapshot, previous));
             if (shutdown.IsCancellationRequested)
                 return;
 
-            if (settings.ShowStrip && found is { } bounds && TaskbarLayout.Capture() == snapshot && strip.ShowAt(bounds))
-            {
-                slot = bounds;
-                lastPlacement = Stopwatch.GetTimestamp();
-            }
-            else
+            if (!settings.ShowStrip || TaskbarLayout.Capture() != snapshot)
             {
                 HideStrip();
+                return;
             }
+
+            if (!scan.Complete)
+            {
+                if (scan.PreviousSlotOccupied || !CanKeepPlacement(snapshot))
+                    HideStrip();
+                return;
+            }
+
+            if (scan.Slot is not { } bounds || !strip.ShowAt(bounds))
+            {
+                HideStrip();
+                return;
+            }
+
+            slot = bounds;
+            placedOn = snapshot;
+            lastPlacement = Stopwatch.GetTimestamp();
         }
         finally
         {
@@ -218,45 +248,33 @@ public partial class App : Application
         }
     }
 
+    private bool CanKeepPlacement(TaskbarSnapshot? snapshot) =>
+        snapshot is not null && placedOn == snapshot && slot is not null &&
+        Stopwatch.GetElapsedTime(lastPlacement) <= PlacementGracePeriod;
+
     private void HideStrip()
     {
         if (strip.IsVisible)
             strip.Hide();
         slot = null;
+        placedOn = null;
     }
 
     private void OpenDetails()
     {
         if (card is null)
         {
-            card = new QuoteCard(Browse, ReturnToCurrent);
-            card.Closed += (_, _) =>
-            {
-                card = null;
-                preview = null;
-            };
+            card = new QuoteCard(() => _ = RefreshQuoteAsync(manual: true));
+            card.Closed += (_, _) => card = null;
         }
 
-        ReturnToCurrent();
+        UpdateCard();
+        card.SetRefreshing(loadingQuote);
         card.OpenNear(slot);
     }
 
-    private void ReturnToCurrent()
-    {
-        preview = null;
-        UpdateCard();
-    }
-
-    private void Browse()
-    {
-        if (daily is not { Quote: var quote })
-            return;
-        preview = QuoteService.Browse(quote, preview);
-        UpdateCard();
-    }
-
     private void UpdateCard() =>
-        card?.SetQuote(preview ?? daily?.Quote, preview is not null, settings.RefreshMinutes is null);
+        card?.SetQuote(daily?.Quote, settings.RefreshMinutes is null);
 
     private void ThemeChanged(object sender, UserPreferenceChangedEventArgs e) =>
         _ = Dispatcher.InvokeAsync(() => Palette.Apply(Resources));
@@ -264,6 +282,8 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         timer.Stop();
+        if (foregroundHook != 0)
+            Native.UnhookWinEvent(foregroundHook);
         SystemEvents.UserPreferenceChanged -= ThemeChanged;
         shutdown.Cancel();
         if (tray is not null)

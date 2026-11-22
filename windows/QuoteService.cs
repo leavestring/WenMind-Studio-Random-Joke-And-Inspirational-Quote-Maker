@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -27,7 +28,11 @@ internal sealed record DailyQuote(DateOnly Date, Quote Quote, DateTimeOffset? Re
 internal sealed class QuoteService(LocalState state) : IDisposable
 {
     private const string CacheName = "daily.json";
+    private const int RecentLimit = 8;
+    private static readonly TimeSpan MinimumRequestInterval = TimeSpan.FromSeconds(2);
     private readonly HttpClient client = new() { Timeout = TimeSpan.FromSeconds(4) };
+    private readonly Queue<string> recent = new(RecentLimit);
+    private long lastRequest;
 
     private static readonly Quote[] LocalQuotes =
     [
@@ -47,6 +52,14 @@ internal sealed class QuoteService(LocalState state) : IDisposable
         new("山重水复疑无路，柳暗花明又一村。", "陆游", "《游山西村》", "本地句库"),
         new("如切如磋，如琢如磨。", "", "《诗经·淇奥》", "本地句库"),
         new("凡益之道，与时偕行。", "", "《周易》", "本地句库"),
+        new("三人行，必有我师焉。", "", "《论语·述而》", "本地句库"),
+        new("往者不可谏，来者犹可追。", "", "《论语·微子》", "本地句库"),
+        new("读书破万卷，下笔如有神。", "杜甫", "《奉赠韦左丞丈二十二韵》", "本地句库"),
+        new("问渠那得清如许？为有源头活水来。", "朱熹", "《观书有感·其一》", "本地句库"),
+        new("海内存知己，天涯若比邻。", "王勃", "《送杜少府之任蜀州》", "本地句库"),
+        new("欲穷千里目，更上一层楼。", "王之涣", "《登鹳雀楼》", "本地句库"),
+        new("盛年不重来，一日难再晨。", "陶渊明", "《杂诗·其一》", "本地句库"),
+        new("穷则独善其身，达则兼善天下。", "", "《孟子·尽心上》", "本地句库"),
     ];
 
     public DailyQuote? ReadCache(DateTimeOffset now)
@@ -58,28 +71,39 @@ internal sealed class QuoteService(LocalState state) : IDisposable
         if (saved.RefreshedAt is null && saved.Date == DateOnly.FromDateTime(now.DateTime))
         {
             saved = saved with { RefreshedAt = now };
-            Save(saved);
+            state.Write(CacheName, saved);
         }
 
+        Remember(saved.Quote.Text);
         return saved;
     }
 
-    public void Save(DailyQuote quote) => state.Write(CacheName, quote);
-
-    public async Task<Quote> FetchNextAsync(Quote? previous, bool daily, CancellationToken cancellation)
+    public void Save(DailyQuote quote)
     {
+        Remember(quote.Quote.Text);
+        state.Write(CacheName, quote);
+    }
+
+    private void Remember(string text)
+    {
+        if (recent.Count == RecentLimit)
+            recent.Dequeue();
+        recent.Enqueue(text);
+    }
+
+    public async Task<Quote> FetchNextAsync(bool daily, CancellationToken cancellation)
+    {
+        string[] shown = recent.ToArray();
         Quote? online = await FetchAsync(cancellation).ConfigureAwait(false);
         cancellation.ThrowIfCancellationRequested();
-        if (online is not null && online.Text != previous?.Text)
+        if (online is not null && !shown.Contains(online.Text))
             return online;
 
         Quote dailyFallback = LocalQuotes[DateOnly.FromDateTime(DateTime.Now).DayNumber % LocalQuotes.Length];
-        return daily && dailyFallback.Text != previous?.Text ? dailyFallback : Browse(previous, null);
-    }
+        if (daily && !shown.Contains(dailyFallback.Text))
+            return dailyFallback;
 
-    public static Quote Browse(Quote? current, Quote? previous)
-    {
-        Quote[] choices = LocalQuotes.Where(quote => quote.Text != current?.Text && quote.Text != previous?.Text).ToArray();
+        Quote[] choices = LocalQuotes.Where(quote => !shown.Contains(quote.Text)).ToArray();
         return choices[Random.Shared.Next(choices.Length)];
     }
 
@@ -87,10 +111,15 @@ internal sealed class QuoteService(LocalState state) : IDisposable
     {
         try
         {
+            TimeSpan delay = MinimumRequestInterval - Stopwatch.GetElapsedTime(lastRequest);
+            if (delay > TimeSpan.Zero)
+                await Task.Delay(delay, cancellation).ConfigureAwait(false);
+
+            lastRequest = Stopwatch.GetTimestamp();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
             timeout.CancelAfter(client.Timeout);
             using HttpResponseMessage response = await client.GetAsync(
-                "https://v1.hitokoto.cn/?c=d&encode=json&max_length=60", timeout.Token).ConfigureAwait(false);
+                "https://v1.hitokoto.cn/?c=d&c=k&encode=json&max_length=60", timeout.Token).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false));
             JsonElement root = json.RootElement;
