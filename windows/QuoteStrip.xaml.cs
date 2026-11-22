@@ -30,4 +30,7 @@ internal partial class QuoteStrip : Window
             Show();
         return true;
     }
+
+    public bool IsExposedAt(Rectangle bounds) =>
+        Native.OwnsCenterPoint(new WindowInteropHelper(this).Handle, bounds);
 }

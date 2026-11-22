@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Automation;
 
 namespace WenMind.Daily;
@@ -52,9 +53,24 @@ internal static class TaskbarLayout
 
     public static TaskbarScan FindSlot(TaskbarSnapshot snapshot, Rectangle? previous)
     {
+        var occupied = new List<Rectangle>();
+        bool complete = ReadButtons(snapshot, snapshot.Handle, occupied);
+        if (!complete)
+        {
+            // Explorer can keep its controls in the input site while the outer taskbar exposes none.
+            nint inputSite = Native.FindTaskbarInputSite(snapshot.Handle);
+            if (inputSite != 0)
+                complete = ReadButtons(snapshot, inputSite, occupied);
+        }
+
+        return Evaluate(snapshot, occupied, complete, previous);
+    }
+
+    private static bool ReadButtons(TaskbarSnapshot snapshot, nint handle, List<Rectangle> occupied)
+    {
         try
         {
-            AutomationElement root = AutomationElement.FromHandle(snapshot.Handle);
+            AutomationElement root = AutomationElement.FromHandle(handle);
             var request = new CacheRequest();
             request.Add(AutomationElement.AutomationIdProperty);
             request.Add(AutomationElement.BoundingRectangleProperty);
@@ -65,7 +81,6 @@ internal static class TaskbarLayout
                     .Append(new PropertyCondition(AutomationElement.ClassNameProperty, "TrayNotifyWnd"))
                     .ToArray());
 
-            var occupied = new List<Rectangle>();
             bool startFound = false;
             bool trayFound = false;
             using (request.Activate())
@@ -88,12 +103,12 @@ internal static class TaskbarLayout
                 }
             }
 
-            return Evaluate(snapshot, occupied, startFound && trayFound, previous);
+            return startFound && trayFound;
         }
         catch (Exception ex) when (ex is ElementNotAvailableException or COMException or
             InvalidOperationException or ArgumentException or Win32Exception)
         {
-            return default;
+            return false;
         }
     }
 
@@ -140,16 +155,48 @@ internal static class Native
 {
     private static readonly nint Topmost = new(-1);
     private const uint ForegroundEvent = 0x0003;
+    private const uint ObjectHideEvent = 0x8003;
     private const uint SkipOwnProcess = 0x0002;
 
     internal delegate void WinEventCallback(nint hook, uint eventType, nint window, int objectId, int childId,
         uint threadId, uint eventTime);
+    private delegate bool ChildWindowCallback(nint window, nint parameter);
 
     public static nint WatchForeground(WinEventCallback callback) =>
         SetWinEventHook(ForegroundEvent, ForegroundEvent, 0, callback, 0, 0, SkipOwnProcess);
 
+    public static nint FindQuickSettings() => FindWindow("ControlCenterWindow", null);
+
+    public static nint WatchWindowHide(nint window, WinEventCallback callback)
+    {
+        GetWindowThreadProcessId(window, out uint processId);
+        return processId == 0 ? 0 : SetWinEventHook(ObjectHideEvent, ObjectHideEvent, 0, callback, processId, 0, 0);
+    }
+
+    public static nint FindTaskbarInputSite(nint taskbar)
+    {
+        nint found = 0;
+        var className = new StringBuilder(96);
+        EnumChildWindows(taskbar, (child, _) =>
+        {
+            GetClassName(child, className, className.Capacity);
+            if (className.ToString() != "Windows.UI.Input.InputSite.WindowClass")
+                return true;
+
+            found = child;
+            return false;
+        }, 0);
+        return found;
+    }
+
     public static bool PlaceWithoutActivating(nint window, Rectangle rectangle) =>
         SetWindowPos(window, Topmost, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, 0x0210);
+
+    public static bool OwnsCenterPoint(nint window, Rectangle bounds)
+    {
+        var point = new Point { X = bounds.Left + bounds.Width / 2, Y = bounds.Top + bounds.Height / 2 };
+        return window != 0 && GetAncestor(WindowFromPoint(point), 2) == window;
+    }
 
     public static void PreventActivation(nint window) =>
         SetWindowLong(window, -20, GetWindowLong(window, -20) | 0x08000000);
@@ -183,6 +230,12 @@ internal static class Native
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct Point
+    {
+        public int X, Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     internal struct MonitorInfo
     {
         public int Size;
@@ -207,6 +260,15 @@ internal static class Native
     internal static extern bool IsWindowVisible(nint handle);
 
     [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumChildWindows(nint parent, ChildWindowCallback callback, nint parameter);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassNameW", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(nint window, StringBuilder className, int capacity);
+
+    [DllImport("user32.dll")]
     internal static extern bool GetWindowRect(nint handle, out Rect bounds);
 
     [DllImport("user32.dll")]
@@ -226,6 +288,12 @@ internal static class Native
 
     [DllImport("user32.dll")]
     private static extern nint GetShellWindow();
+
+    [DllImport("user32.dll")]
+    private static extern nint WindowFromPoint(Point point);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetAncestor(nint window, uint flags);
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmGetWindowAttribute(nint window, int attribute, out Rect bounds, int size);

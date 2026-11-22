@@ -15,11 +15,16 @@ public partial class App : Application
 {
     private const string SettingsName = "settings.json";
     private static readonly TimeSpan PlacementGracePeriod = TimeSpan.FromSeconds(2.5);
+    private static readonly TimeSpan QuickSettingsRetryPeriod = TimeSpan.FromSeconds(2);
     private readonly LocalState state = new();
     private readonly CancellationTokenSource shutdown = new();
     private readonly DispatcherTimer timer = new(DispatcherPriority.Background)
     {
         Interval = TimeSpan.FromMilliseconds(900),
+    };
+    private readonly DispatcherTimer placementRetry = new(DispatcherPriority.Background)
+    {
+        Interval = TimeSpan.FromMilliseconds(100),
     };
     private QuoteService service = null!;
     private QuoteStrip strip = null!;
@@ -36,6 +41,10 @@ public partial class App : Application
     private long lastPlacement;
     private Native.WinEventCallback? foregroundCallback;
     private nint foregroundHook;
+    private Native.WinEventCallback? quickSettingsCallback;
+    private nint quickSettingsHook;
+    private nint quickSettingsWindow;
+    private long quickSettingsClosedAt;
     private AppSettings settings = new();
     private bool checkingPlacement;
     private bool loadingQuote;
@@ -61,13 +70,15 @@ public partial class App : Application
         if (daily is not null)
             ShowCurrentQuote(daily.Quote);
         SystemEvents.UserPreferenceChanged += ThemeChanged;
-        foregroundCallback = (_, _, _, _, _, _, _) => _ = Dispatcher.InvokeAsync(() =>
+        foregroundCallback = (_, _, _, _, _, _, _) => RequestPlacement();
+        quickSettingsCallback = (_, _, window, objectId, childId, _, _) =>
         {
-            if (!shutdown.IsCancellationRequested)
-                _ = RefreshPlacementAsync(raiseExisting: true);
-        });
+            if (window == quickSettingsWindow && objectId == 0 && childId == 0)
+                RequestPlacement(quickSettingsClosed: true);
+        };
         foregroundHook = Native.WatchForeground(foregroundCallback);
         timer.Tick += (_, _) => Refresh();
+        placementRetry.Tick += (_, _) => RetryPlacement();
         timer.Start();
         Refresh();
     }
@@ -199,6 +210,7 @@ public partial class App : Application
     private async Task RefreshPlacementAsync(bool raiseExisting = false)
     {
         TaskbarSnapshot? snapshot = settings.ShowStrip && daily is not null ? TaskbarLayout.Capture() : null;
+        WatchQuickSettings(snapshot is null ? 0 : Native.FindQuickSettings());
         if (!CanKeepPlacement(snapshot))
         {
             HideStrip();
@@ -248,6 +260,53 @@ public partial class App : Application
         }
     }
 
+    private void RequestPlacement(bool quickSettingsClosed = false) => _ = Dispatcher.InvokeAsync(() =>
+    {
+        if (shutdown.IsCancellationRequested)
+            return;
+
+        _ = RefreshPlacementAsync(raiseExisting: true);
+        if (quickSettingsClosed)
+        {
+            quickSettingsClosedAt = Stopwatch.GetTimestamp();
+            RetryPlacement();
+        }
+    });
+
+    private void RetryPlacement()
+    {
+        if (Stopwatch.GetElapsedTime(quickSettingsClosedAt) >= QuickSettingsRetryPeriod ||
+            !settings.ShowStrip || (quickSettingsWindow != 0 && Native.IsWindowVisible(quickSettingsWindow)))
+        {
+            placementRetry.Stop();
+            return;
+        }
+
+        // Reuse the validated slot. The regular timer still scans the layout independently.
+        if (slot is { } bounds && CanKeepPlacement(TaskbarLayout.Capture()) &&
+            strip.ShowAt(bounds) && strip.IsExposedAt(bounds))
+        {
+            placementRetry.Stop();
+            return;
+        }
+
+        placementRetry.Start();
+    }
+
+    private void WatchQuickSettings(nint window)
+    {
+        if (window == quickSettingsWindow)
+            return;
+
+        if (quickSettingsHook != 0)
+            Native.UnhookWinEvent(quickSettingsHook);
+
+        quickSettingsWindow = window;
+        quickSettingsHook = window != 0 && quickSettingsCallback is { } callback
+            ? Native.WatchWindowHide(window, callback)
+            : 0;
+    }
+
     private bool CanKeepPlacement(TaskbarSnapshot? snapshot) =>
         snapshot is not null && placedOn == snapshot && slot is not null &&
         Stopwatch.GetElapsedTime(lastPlacement) <= PlacementGracePeriod;
@@ -282,8 +341,10 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         timer.Stop();
+        placementRetry.Stop();
         if (foregroundHook != 0)
             Native.UnhookWinEvent(foregroundHook);
+        WatchQuickSettings(0);
         SystemEvents.UserPreferenceChanged -= ThemeChanged;
         shutdown.Cancel();
         if (tray is not null)
