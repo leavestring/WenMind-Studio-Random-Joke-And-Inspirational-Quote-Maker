@@ -21,9 +21,8 @@ internal partial class QuoteStrip : Window
         AutomationProperties.SetName(QuoteButton, $"查看名言，{Excerpt.Text}");
     }
 
-    public bool ShowAt(Rectangle slot, bool floating)
+    public bool ShowAt(Rectangle slot)
     {
-        QuoteButton.Tag = floating ? "floating" : null;
         nint handle = new WindowInteropHelper(this).EnsureHandle();
         if (!Native.PlaceWithoutActivating(handle, slot))
             return false;

@@ -13,11 +13,6 @@
                     <ContentPresenter VerticalAlignment="Center" />
                 </Border>
                 <ControlTemplate.Triggers>
-                    <Trigger Property="Tag" Value="floating">
-                        <Setter TargetName="Surface" Property="Background" Value="{DynamicResource Card}" />
-                        <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource Divider}" />
-                        <Setter TargetName="Surface" Property="BorderThickness" Value="1" />
-                    </Trigger>
                     <Trigger Property="IsMouseOver" Value="True">
                         <Setter TargetName="Surface" Property="Background" Value="{DynamicResource Hover}" />
                     </Trigger>
